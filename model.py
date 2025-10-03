@@ -4,64 +4,106 @@ from transformers import MT5Tokenizer
 from transformers import MT5ForConditionalGeneration
 from transformers import Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
 import transformers
+from datasets import load_dataset
 
 tokenizer = MT5Tokenizer.from_pretrained("google/mt5-base")
 model = MT5ForConditionalGeneration.from_pretrained("google/mt5-base")
-def load_text_data(source_path, target_path):
-    with open(source_path, encoding="utf-8") as src_file, open(target_path, encoding="utf-8") as tgt_file:
-        source_lines = [line.strip() for line in src_file.readlines()]
-        target_lines = [line.strip() for line in tgt_file.readlines()]
 
-    assert len(source_lines) == len(target_lines), "Source and target files must have the same number of lines."
 
-    return Dataset.from_dict({"input_text": source_lines, "target_text": target_lines})
+ds = load_dataset("matejklemen/clc_fce")
+small_dataset = DatasetDict({
+    "train": ds["train"].shuffle(seed=42).select(range(1000)),
+    "validation": ds["validation"].shuffle(seed=42).select(range(500)),
+    "test": ds["test"].shuffle(seed=42).select(range(500)),
+})
 
-train_dataset = load_text_data("data/train/train.src", "data/train/train.tgt")
-test_dataset = load_text_data("data/test/test.src", "data/test/test.tgt")
 
-split_point = len(train_dataset) // 2
-divided_datasets = train_dataset.train_test_split(test_size=0.5, seed=42)
 
-train_dataset = divided_datasets['train']
-
-max_input_length = 512
+max_input_length = 128
 max_target_length = 128
 
-def preprocess(examples):
-    inputs = examples['input_text']
-    targets = examples['target_text']
-    
-    model_inputs = tokenizer(inputs, max_length=max_input_length, truncation=True, padding='max_length')
-    labels = tokenizer(targets, max_length=max_target_length, truncation=True, padding='max_length')
-    
+def preprocess_function(examples):
+    # Convert list of tokens to sentence
+    inputs = [" ".join(tokens) for tokens in examples["src_tokens"]]
+    targets = [" ".join(tokens) for tokens in examples["tgt_tokens"]]
+
+    model_inputs = tokenizer(
+        inputs, max_length=128, truncation=True, padding="max_length"
+    )
+
+    labels = tokenizer(
+        targets, max_length=128, truncation=True, padding="max_length"
+    )
+
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
-tokenized_datasets = train_dataset.map(preprocess, batched=True)
+tokenized_datasets = small_dataset.map(preprocess_function, batched=True)
 
 data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
 training_args = Seq2SeqTrainingArguments(
-    output_dir="./mt5-hindi-finetuned",
+    output_dir="./mt5-error-correction",
     eval_strategy="epoch",
     learning_rate=3e-4,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
+    per_device_train_batch_size=4,
+    per_device_eval_batch_size=4,
     weight_decay=0.01,
-    save_total_limit=3,
-    num_train_epochs=3,
+    save_total_limit=2,
+    num_train_epochs=5,
     predict_with_generate=True,
-    fp16=True,  # if on GPU
     logging_dir="./logs",
+    logging_steps=100,
+    save_strategy="epoch",
+    load_best_model_at_end=True,
+    metric_for_best_model="loss",
 )
 
 trainer = Seq2SeqTrainer(
     model=model,
     args=training_args,
-    train_dataset=tokenized_datasets,
-    eval_dataset=test_dataset.map(preprocess, batched=True),
+    train_dataset=tokenized_datasets["train"],
+    eval_dataset=tokenized_datasets["validation"],
     tokenizer=tokenizer,
     data_collator=data_collator,
 )
 
+# Train model
 trainer.train()
+
+# Save final model
+trainer.save_model("./mt5-error-correction-final")
+tokenizer.save_pretrained("./mt5-error-correction-final")
+
+
+# tokenized_datasets = train_dataset.map(preprocess, batched=True)
+
+# data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
+
+# training_args = Seq2SeqTrainingArguments(
+#     output_dir="./mt5-hindi-finetuned",
+#     eval_strategy="epoch",
+#     learning_rate=3e-4,
+#     per_device_train_batch_size=4,
+#     per_device_eval_batch_size=4,
+#     weight_decay=0.01,
+#     save_total_limit=3,
+#     num_train_epochs=3,
+#     predict_with_generate=True,
+#     fp16=True,  # if on GPU
+#     logging_dir="./logs",
+# )
+
+# trainer = Seq2SeqTrainer(
+#     model=model,
+#     args=training_args,
+#     train_dataset=tokenized_datasets,
+#     eval_dataset=test_dataset.map(preprocess, batched=True),
+#     tokenizer=tokenizer,
+#     data_collator=data_collator,
+# )
+
+# trainer.train()
+
+# trainer.save_model("./mt5_fine_tuned")
+# tokenizer.save_pretrained("./mt5_fine_tuned")
