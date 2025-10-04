@@ -28,7 +28,6 @@ for text in src_texts:
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True).to(model.device)
     outputs = model.generate(**inputs, max_length=128)
     pred = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    print(pred)
     preds.append(pred)
 
 y_true = []
