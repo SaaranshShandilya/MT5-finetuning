@@ -1,7 +1,7 @@
 from transformers import MT5ForConditionalGeneration, MT5Tokenizer
 import torch
 
-model_dir = "./mt5-error-correction-final"   # path where you saved
+model_dir = "./mt5-error-correction-final"
 model = MT5ForConditionalGeneration.from_pretrained(model_dir)
 tokenizer = MT5Tokenizer.from_pretrained(model_dir)
 model.eval().to("cuda" if torch.cuda.is_available() else "cpu")

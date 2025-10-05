@@ -23,7 +23,6 @@ max_input_length = 128
 max_target_length = 128
 
 def preprocess_function(examples):
-    # Convert list of tokens to sentence
     inputs = [" ".join(tokens) for tokens in examples["src_tokens"]]
     targets = [" ".join(tokens) for tokens in examples["tgt_tokens"]]
 
@@ -68,42 +67,8 @@ trainer = Seq2SeqTrainer(
     data_collator=data_collator,
 )
 
-# Train model
 trainer.train()
 
-# Save final model
 trainer.save_model("./mt5-error-correction-final")
 tokenizer.save_pretrained("./mt5-error-correction-final")
 
-
-# tokenized_datasets = train_dataset.map(preprocess, batched=True)
-
-# data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
-
-# training_args = Seq2SeqTrainingArguments(
-#     output_dir="./mt5-hindi-finetuned",
-#     eval_strategy="epoch",
-#     learning_rate=3e-4,
-#     per_device_train_batch_size=4,
-#     per_device_eval_batch_size=4,
-#     weight_decay=0.01,
-#     save_total_limit=3,
-#     num_train_epochs=3,
-#     predict_with_generate=True,
-#     fp16=True,  # if on GPU
-#     logging_dir="./logs",
-# )
-
-# trainer = Seq2SeqTrainer(
-#     model=model,
-#     args=training_args,
-#     train_dataset=tokenized_datasets,
-#     eval_dataset=test_dataset.map(preprocess, batched=True),
-#     tokenizer=tokenizer,
-#     data_collator=data_collator,
-# )
-
-# trainer.train()
-
-# trainer.save_model("./mt5_fine_tuned")
-# tokenizer.save_pretrained("./mt5_fine_tuned")
